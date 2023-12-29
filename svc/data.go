@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	db *gorm.DB
+	gdb *gorm.DB
 )
 
 func init() {
@@ -66,7 +66,7 @@ func init() {
 			DefaultStringSize: 100,
 		})
 	}
-	db, err = gorm.Open(dialector, &gorm.Config{
+	gdb, err = gorm.Open(dialector, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
 		},
@@ -85,12 +85,12 @@ func init() {
 		logrus.Fatal(err)
 	}
 	if uri.Scheme == "sqlite" {
-		err = db.Exec("PRAGMA journal_mode=WAL;").Error
+		err = gdb.Exec("PRAGMA journal_mode=WAL;").Error
 		if err != nil {
 			logrus.Fatal(err)
 		}
 	}
-	err = db.Callback().Create().Before("gorm:create").Register("gorm:id", func(d *gorm.DB) {
+	err = gdb.Callback().Create().Before("gorm:create").Register("gorm:id", func(d *gorm.DB) {
 		if d.Statement.Schema == nil {
 			return
 		}
@@ -116,24 +116,24 @@ func init() {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	sqlDb, err := db.DB()
+	sdb, err := gdb.DB()
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	sqlDb.SetMaxIdleConns(viper.GetInt("dsn.maxIdleConns"))
-	sqlDb.SetMaxOpenConns(viper.GetInt("dsn.maxOpenConns"))
-	sqlDb.SetConnMaxLifetime(viper.GetDuration("dsn.maxLifetime"))
+	sdb.SetMaxIdleConns(viper.GetInt("dsn.maxIdleConns"))
+	sdb.SetMaxOpenConns(viper.GetInt("dsn.maxOpenConns"))
+	sdb.SetConnMaxLifetime(viper.GetDuration("dsn.maxLifetime"))
 }
 
 func Migrate(sqls ...string) error {
 	for _, s := range sqls {
 		sql := s
-		if db.Dialector.Name() == "sqlite" {
+		if gdb.Dialector.Name() == "sqlite" {
 			sql = utl.Replace(s, "INSERT IGNORE INTO", "INSERT OR IGNORE INTO")
-		} else if db.Dialector.Name() == "mysql" {
+		} else if gdb.Dialector.Name() == "mysql" {
 			sql = utl.Replace(s, "INSERT OR IGNORE INTO", "INSERT IGNORE INTO")
 		}
-		err := db.Exec(sql).Error
+		err := gdb.Exec(sql).Error
 		if err != nil {
 			return err
 		}
@@ -149,7 +149,7 @@ func NewDataSvc[M any](prefix string) *DataSvc[M] {
 	s := &DataSvc[M]{
 		Svc: NewSvc[M](prefix),
 	}
-	err := db.AutoMigrate(new(M))
+	err := gdb.AutoMigrate(new(M))
 	if err != nil {
 		logrus.Error(err)
 	}
@@ -158,7 +158,7 @@ func NewDataSvc[M any](prefix string) *DataSvc[M] {
 
 func (s *DataSvc[M]) Get(conds ...any) (*M, error) {
 	var m M
-	err := db.First(&m, conds...).Error
+	err := gdb.First(&m, conds...).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -249,6 +249,7 @@ func (s *DataSvc[M]) ListRedis(expiration time.Duration, conds ...any) ([]M, err
 }
 
 func (s *DataSvc[M]) Make(conds ...any) *gorm.DB {
+	db := gdb
 	if len(conds) > 0 {
 		index := 0
 		length := len(conds)
@@ -265,19 +266,19 @@ func (s *DataSvc[M]) Make(conds ...any) *gorm.DB {
 				delete(cond, "current")
 			}
 			var keys []string
-			var values []any
+			var vals []any
 			for k, v := range cond {
 				value, ok := v.(string)
 				if ok {
 					if value != "" {
 						keys = append(keys, fmt.Sprintf("%s like ?", k))
-						values = append(values, fmt.Sprintf("%%%s%%", v))
+						vals = append(vals, fmt.Sprintf("%%%s%%", v))
 					}
 					delete(cond, k)
 				}
 			}
 			if len(keys) > 0 {
-				db = db.Where(strings.Join(keys, " and "), values...)
+				db = db.Where(strings.Join(keys, " and "), vals...)
 			}
 			index++
 		}
@@ -297,14 +298,14 @@ func (s *DataSvc[M]) Purge(conds ...any) error {
 	if len(conds) == 0 {
 		conds = append(conds, "id > 0")
 	}
-	return db.Unscoped().Delete(new(M), conds...).Error
+	return gdb.Unscoped().Delete(new(M), conds...).Error
 }
 
 func (s *DataSvc[M]) Remove(conds ...any) error {
 	if len(conds) == 0 {
 		conds = append(conds, "id > 0")
 	}
-	return db.Delete(new(M), conds...).Error
+	return gdb.Delete(new(M), conds...).Error
 }
 
 func (s *DataSvc[M]) Save(m M, confs ...clause.Expression) error {
@@ -315,7 +316,7 @@ func (s *DataSvc[M]) Save(m M, confs ...clause.Expression) error {
 			},
 		}
 	}
-	return db.Clauses(confs...).Create(&m).Error
+	return gdb.Clauses(confs...).Create(&m).Error
 }
 
 func (s *DataSvc[M]) Saves(ms []M, confs ...clause.Expression) error {
@@ -329,11 +330,11 @@ func (s *DataSvc[M]) Saves(ms []M, confs ...clause.Expression) error {
 			},
 		}
 	}
-	return db.Clauses(confs...).Create(&ms).Error
+	return gdb.Clauses(confs...).Create(&ms).Error
 }
 
 func (s *DataSvc[M]) Trans(funcs ...func(tx *gorm.DB) error) error {
-	return db.Transaction(func(tx *gorm.DB) error {
+	return gdb.Transaction(func(tx *gorm.DB) error {
 		for _, f := range funcs {
 			err := f(tx)
 			if err != nil {
