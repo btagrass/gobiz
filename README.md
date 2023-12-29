@@ -3,3 +3,7 @@
 ```bash
 go get github.com/btagrass/gobiz
 ```
+## Build
+```bash
+bash build.sh
+```
