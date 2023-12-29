@@ -17,7 +17,7 @@ func init() {
 
 func Inject[T any](provider do.Provider[T]) {
 	do.Provide(injector, provider)
-	do.MustInvoke[T](injector)
+	_ = do.MustInvoke[T](injector)
 }
 
 func Use[T any]() T {

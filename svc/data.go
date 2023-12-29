@@ -145,7 +145,7 @@ type DataSvc[M any] struct {
 	*Svc[M]
 }
 
-func NewDataSvc[M any](prefix string, sqls ...string) *DataSvc[M] {
+func NewDataSvc[M any](prefix string) *DataSvc[M] {
 	s := &DataSvc[M]{
 		Svc: NewSvc[M](prefix),
 	}
