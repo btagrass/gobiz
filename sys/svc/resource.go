@@ -16,14 +16,16 @@ type ResourceSvc struct {
 
 func NewResourceSvc(i *do.Injector) (*ResourceSvc, error) {
 	return &ResourceSvc{
-		DataSvc: svc.NewDataSvc[mdl.Resource]("sys:resources"),
+		DataSvc: svc.NewDataSvc[mdl.Resource](
+			"sys:resources",
+		),
 		userSvc: svc.Use[*UserSvc](),
 	}, nil
 }
 
 func (s *ResourceSvc) ListMenus(userId string) ([]mdl.Resource, error) {
 	var resources []mdl.Resource
-	err := s.Db.
+	err := s.Make().
 		Preload("Children", func(db *gorm.DB) *gorm.DB {
 			return db.Where("type = 1").Order("sequence")
 		}).

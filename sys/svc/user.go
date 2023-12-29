@@ -33,7 +33,7 @@ func NewUserSvc(i *do.Injector) (*UserSvc, error) {
 	model.AddDef("g", "g", "_, _")                                                                                                                             // 用户角色（_：用户编码，_：角色编码）
 	model.AddDef("e", "e", "some(where (p.eft == allow))")                                                                                                     // 策略
 	model.AddDef("m", "m", "r.sub == '300000000000001' || r.obj == '/mgt/sys/resources/menu' || g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && r.act == p.act") // 匹配
-	adapter, err := gormadapter.NewAdapterByDBUseTableName(s.Db, "sys", "rule")
+	adapter, err := gormadapter.NewAdapterByDBUseTableName(s.Make(), "sys", "rule")
 	if err != nil {
 		logrus.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func (s *UserSvc) ListUserRoles(id string) ([]int64, error) {
 
 func (s *UserSvc) Login(userName, password string) (*mdl.User, error) {
 	var user *mdl.User
-	err := s.Db.Select("id, user_name, password, frozen").First(&user, "user_name = ?", userName).Error
+	err := s.Make().Select("id, user_name, password, frozen").First(&user, "user_name = ?", userName).Error
 	if err != nil {
 		return nil, fmt.Errorf("用户名或密码错误")
 	}

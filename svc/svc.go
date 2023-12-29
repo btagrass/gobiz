@@ -15,8 +15,9 @@ func init() {
 	do.Provide(injector, NewCacheSvc)
 }
 
-func Inject[T any](p do.Provider[T]) {
-	do.Provide(injector, p)
+func Inject[T any](provider do.Provider[T]) {
+	do.Provide(injector, provider)
+	do.MustInvoke[T](injector)
 }
 
 func Use[T any]() T {
