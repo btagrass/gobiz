@@ -52,12 +52,12 @@ func init() {
 		uri.Host = fmt.Sprintf("(%s)", uri.Host)
 		dsn = strings.TrimPrefix(uri.String(), fmt.Sprintf("%s://", uri.Scheme))
 		name := strings.TrimPrefix(uri.Path, "/")
-		info, err := sql.Open("mysql", utl.Replace(dsn, name, "information_schema"))
+		db, err := sql.Open("mysql", utl.Replace(dsn, name, "information_schema"))
 		if err != nil {
 			logrus.Fatal(err)
 		}
-		defer info.Close()
-		_, err = info.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_general_ci;", name))
+		defer db.Close()
+		_, err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_general_ci;", name))
 		if err != nil {
 			logrus.Fatal(err)
 		}
@@ -90,26 +90,26 @@ func init() {
 			logrus.Fatal(err)
 		}
 	}
-	err = gdb.Callback().Create().Before("gorm:create").Register("gorm:id", func(d *gorm.DB) {
-		if d.Statement.Schema == nil {
+	err = gdb.Callback().Create().Before("gorm:create").Register("gorm:id", func(db *gorm.DB) {
+		if db.Statement.Schema == nil {
 			return
 		}
-		id := d.Statement.Schema.LookUpField("Id")
+		id := db.Statement.Schema.LookUpField("Id")
 		if id == nil {
 			return
 		}
-		kind := d.Statement.ReflectValue.Kind()
+		kind := db.Statement.ReflectValue.Kind()
 		if kind == reflect.Array || kind == reflect.Slice {
-			for i := 0; i < d.Statement.ReflectValue.Len(); i++ {
-				_, zero := id.ValueOf(d.Statement.Context, d.Statement.ReflectValue.Index(i))
+			for i := 0; i < db.Statement.ReflectValue.Len(); i++ {
+				_, zero := id.ValueOf(db.Statement.Context, db.Statement.ReflectValue.Index(i))
 				if zero {
-					id.Set(d.Statement.Context, d.Statement.ReflectValue.Index(i), utl.IntId())
+					id.Set(db.Statement.Context, db.Statement.ReflectValue.Index(i), utl.IntId())
 				}
 			}
 		} else if kind == reflect.Struct {
-			_, zero := id.ValueOf(d.Statement.Context, d.Statement.ReflectValue)
+			_, zero := id.ValueOf(db.Statement.Context, db.Statement.ReflectValue)
 			if zero {
-				id.Set(d.Statement.Context, d.Statement.ReflectValue, utl.IntId())
+				id.Set(db.Statement.Context, db.Statement.ReflectValue, utl.IntId())
 			}
 		}
 	})
