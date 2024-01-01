@@ -21,27 +21,25 @@ const (
 )
 
 type Trc[T ITask] struct {
-	*svc.CacheSvc
+	*svc.Svc[T]
 	hostname   string
 	lastTasks  map[string]T
-	prefix     string
 	timeshares [24]int
 }
 
 func NewTrc[T ITask](prefix string, timeshares [24]int) *Trc[T] {
 	hostname, _ := os.Hostname()
 	t := &Trc[T]{
-		CacheSvc:   svc.Use[*svc.CacheSvc](),
-		prefix:     prefix,
+		Svc:        svc.NewSvc[T](prefix),
 		timeshares: timeshares,
 		hostname:   hostname,
 	}
 	stateKey := fmt.Sprintf("%s:*:state", prefix)
-	stateKeys := t.CacheSvc.Redis.Keys(context.Background(), stateKey).Val()
+	stateKeys := t.Redis.Keys(context.Background(), stateKey).Val()
 	for _, k := range stateKeys {
-		v := t.CacheSvc.Redis.Get(context.Background(), k).Val()
+		v := t.Redis.Get(context.Background(), k).Val()
 		if strings.HasPrefix(v, hostname) {
-			t.CacheSvc.Redis.Del(context.Background(), k)
+			t.Redis.Del(context.Background(), k)
 		}
 	}
 	return t
@@ -49,7 +47,7 @@ func NewTrc[T ITask](prefix string, timeshares [24]int) *Trc[T] {
 
 func (t *Trc[T]) Clean(duration time.Duration) error {
 	currentTime := time.Now()
-	keys, err := t.CacheSvc.Redis.Keys(context.Background(), fmt.Sprintf("%s:*:timeshares", t.prefix)).Result()
+	keys, err := t.Redis.Keys(context.Background(), t.GetFullKey("*", "timeshares")).Result()
 	if err != nil {
 		return err
 	}
@@ -64,15 +62,15 @@ func (t *Trc[T]) Clean(duration time.Duration) error {
 			continue
 		}
 		if currentTime.Sub(dateTime) > duration {
-			t.CacheSvc.Redis.Del(context.Background(), k)
+			t.Redis.Del(context.Background(), k)
 		}
 	}
 	return nil
 }
 
 func (t *Trc[T]) GetState(task T) string {
-	stateKey := fmt.Sprintf("%s:%s:state", t.prefix, task.GetCode())
-	stateValue := t.CacheSvc.Redis.Get(context.Background(), stateKey).Val()
+	stateKey := t.GetFullKey(task.GetCode(), "state")
+	stateValue := t.Redis.Get(context.Background(), stateKey).Val()
 	return strings.TrimPrefix(stateValue, t.hostname)
 }
 
@@ -152,49 +150,49 @@ func (t *Trc[T]) calcRate(beginTime, currentTime, endTime time.Time) float64 {
 }
 
 func (t *Trc[T]) cancel(task T) bool {
-	stateKey := fmt.Sprintf("%s:%s:state", t.prefix, task.GetCode())
+	stateKey := t.GetFullKey(task.GetCode(), "state")
 	stateValue := fmt.Sprintf("%s.%s", t.hostname, StateCanceled)
-	return t.CacheSvc.Redis.SetXX(context.Background(), stateKey, stateValue, time.Hour).Val()
+	return t.Redis.SetXX(context.Background(), stateKey, stateValue, time.Hour).Val()
 }
 
 func (t *Trc[T]) isAvailable(task T) bool {
 	expectedRate := t.calcRate(task.GetBeginTime(), time.Now(), task.GetEndTime())
 	expectedCount := cast.ToInt64(cast.ToFloat64(task.GetCount()) * expectedRate)
-	timesharesKey := fmt.Sprintf("%s:%s:%s:timeshares", t.prefix, task.GetBeginTime().Format("20060102"), task.GetCode())
+	timesharesKey := t.GetFullKey(task.GetBeginTime().Format("20060102"), task.GetCode(), "timeshares")
 	expectedKey := "expected"
-	t.CacheSvc.Redis.HSet(context.Background(), timesharesKey, expectedKey, expectedCount)
+	t.Redis.HSet(context.Background(), timesharesKey, expectedKey, expectedCount)
 	actualKey := "actual"
-	actualCount := cast.ToInt64(t.CacheSvc.Redis.HGet(context.Background(), timesharesKey, actualKey).Val())
+	actualCount := cast.ToInt64(t.Redis.HGet(context.Background(), timesharesKey, actualKey).Val())
 	return actualCount < expectedCount
 }
 
 func (t *Trc[T]) start(task T) bool {
-	stateKey := fmt.Sprintf("%s:%s:state", t.prefix, task.GetCode())
+	stateKey := t.GetFullKey(task.GetCode(), "state")
 	stateValue := fmt.Sprintf("%s.%s", t.hostname, StateStarted)
-	if !t.CacheSvc.Redis.SetNX(context.Background(), stateKey, stateValue, time.Hour).Val() {
+	if !t.Redis.SetNX(context.Background(), stateKey, stateValue, time.Hour).Val() {
 		return false
 	}
-	timesharesKey := fmt.Sprintf("%s:%s:%s:timeshares", t.prefix, task.GetBeginTime().Format("20060102"), task.GetCode())
+	timesharesKey := t.GetFullKey(task.GetBeginTime().Format("20060102"), task.GetCode(), "timeshares")
 	expectedKey := "expected"
-	expectedCount := cast.ToInt64(t.CacheSvc.Redis.HGet(context.Background(), timesharesKey, expectedKey).Val())
+	expectedCount := cast.ToInt64(t.Redis.HGet(context.Background(), timesharesKey, expectedKey).Val())
 	actualKey := "actual"
-	if t.CacheSvc.Redis.HIncrBy(context.Background(), timesharesKey, actualKey, 1).Val() > expectedCount {
-		t.CacheSvc.Redis.HIncrBy(context.Background(), timesharesKey, actualKey, -1)
+	if t.Redis.HIncrBy(context.Background(), timesharesKey, actualKey, 1).Val() > expectedCount {
+		t.Redis.HIncrBy(context.Background(), timesharesKey, actualKey, -1)
 		return false
 	}
 	return true
 }
 
 func (t *Trc[T]) stop(task T) bool {
-	timesharesKey := fmt.Sprintf("%s:%s:%s:timeshares", t.prefix, task.GetBeginTime().Format("20060102"), task.GetCode())
+	timesharesKey := t.GetFullKey(task.GetBeginTime().Format("20060102"), task.GetCode(), "timeshares")
 	state := t.GetState(task)
 	if state == StateCanceled {
 		state = "canceled"
 	} else {
 		state = "finished"
 	}
-	t.CacheSvc.Redis.HIncrBy(context.Background(), timesharesKey, state, 1)
-	stateKey := fmt.Sprintf("%s:%s:state", t.prefix, task.GetCode())
-	t.CacheSvc.Redis.Del(context.Background(), stateKey).Val()
+	t.Redis.HIncrBy(context.Background(), timesharesKey, state, 1)
+	stateKey := t.GetFullKey(task.GetCode(), "state")
+	t.Redis.Del(context.Background(), stateKey).Val()
 	return true
 }

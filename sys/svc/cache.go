@@ -5,34 +5,22 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btagrass/gobiz/mdl"
+	"github.com/btagrass/gobiz/svc"
+	"github.com/btagrass/gobiz/sys/mdl"
 	"github.com/btagrass/gobiz/utl"
 	"github.com/bytedance/sonic"
-	"github.com/go-redis/redis/v8"
-	"github.com/patrickmn/go-cache"
 	"github.com/samber/do"
 	"github.com/spf13/cast"
-	"github.com/spf13/viper"
 )
 
 type CacheSvc struct {
-	Local *cache.Cache
-	Redis *redis.Client
+	*svc.Svc[mdl.Cache]
 }
 
 func NewCacheSvc(i *do.Injector) (*CacheSvc, error) {
-	s := &CacheSvc{
-		Local: cache.New(cache.NoExpiration, 5*time.Minute),
-	}
-	addr := viper.GetString("redis.addr")
-	if addr != "" {
-		s.Redis = redis.NewClient(&redis.Options{
-			Addr:     addr,
-			Password: viper.GetString("redis.password"),
-			DB:       viper.GetInt("redis.db"),
-		})
-	}
-	return s, nil
+	return &CacheSvc{
+		Svc: svc.NewSvc[mdl.Cache]("sys:caches"),
+	}, nil
 }
 
 func (s *CacheSvc) ListCaches(typ string, keywords ...string) ([]mdl.Cache, int64, error) {

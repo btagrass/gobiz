@@ -2,18 +2,18 @@ package svc
 
 import (
 	"strings"
+	"time"
 
+	"github.com/go-redis/redis/v8"
+	"github.com/patrickmn/go-cache"
 	"github.com/samber/do"
 	"github.com/spf13/cast"
+	"github.com/spf13/viper"
 )
 
 var (
 	injector = do.New()
 )
-
-func init() {
-	do.Provide(injector, NewCacheSvc)
-}
 
 func Inject[T any](provider do.Provider[T]) {
 	do.Provide(injector, provider)
@@ -25,15 +25,25 @@ func Use[T any]() T {
 }
 
 type Svc[M any] struct {
-	*CacheSvc
+	Local  *cache.Cache
+	Redis  *redis.Client
 	prefix string
 }
 
 func NewSvc[M any](prefix string) *Svc[M] {
-	return &Svc[M]{
-		CacheSvc: Use[*CacheSvc](),
-		prefix:   prefix,
+	s := &Svc[M]{
+		Local: cache.New(cache.NoExpiration, 5*time.Minute),
 	}
+	addr := viper.GetString("redis.addr")
+	if addr != "" {
+		s.Redis = redis.NewClient(&redis.Options{
+			Addr:     addr,
+			Password: viper.GetString("redis.password"),
+			DB:       viper.GetInt("redis.db"),
+		})
+	}
+	s.prefix = prefix
+	return s
 }
 
 func (s *Svc[M]) GetFullKey(keys ...any) string {
