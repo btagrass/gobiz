@@ -1,4 +1,4 @@
-package svc
+package internal
 
 import (
 	"sync"

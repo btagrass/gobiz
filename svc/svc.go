@@ -3,6 +3,7 @@ package svc
 import (
 	"strings"
 
+	"github.com/btagrass/gobiz/svc/internal"
 	"github.com/samber/do"
 	"github.com/spf13/cast"
 )
@@ -21,13 +22,13 @@ func Use[T any]() T {
 }
 
 type Svc[M any] struct {
-	*Cache
+	*internal.Cache
 	prefix string
 }
 
 func NewSvc[M any](prefix string) *Svc[M] {
 	return &Svc[M]{
-		Cache:  NewCache(),
+		Cache:  internal.NewCache(),
 		prefix: prefix,
 	}
 }
