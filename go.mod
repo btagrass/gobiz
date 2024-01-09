@@ -35,8 +35,6 @@ require (
 	gorm.io/gorm v1.25.5
 )
 
-require github.com/rogpeppe/go-internal v1.11.0 // indirect
-
 require (
 	github.com/aws/aws-sdk-go v1.49.12 // indirect
 	github.com/casbin/govaluate v1.1.1 // indirect
@@ -91,6 +89,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20221212215047-62379fc7944b // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
