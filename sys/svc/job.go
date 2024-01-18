@@ -9,18 +9,24 @@ import (
 	"github.com/samber/do"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"gorm.io/gorm/clause"
 )
 
 type IJob interface {
 	cron.Job
+	GetName() string
+	GetDesc() string
+	GetCron() string
+	GetArg() string
+	GetArgDesc() string
 	SetArg(arg string)
 }
 
 type JobSvc struct {
 	*svc.DataSvc[mdl.Job]
-	Jobs     map[string]IJob
 	cron     *cron.Cron
 	interval time.Duration
+	jobs     map[string]IJob
 }
 
 func NewJobSvc(i *do.Injector) (*JobSvc, error) {
@@ -28,9 +34,10 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 		DataSvc:  svc.NewDataSvc[mdl.Job]("sys:jobs"),
 		cron:     cron.New(cron.WithChain(cron.SkipIfStillRunning(cron.DefaultLogger))),
 		interval: viper.GetDuration("job.interval"),
+		jobs:     make(map[string]IJob),
 	}
 	if s.interval == 0 {
-		s.interval = 7 * time.Second
+		s.interval = 3 * time.Second
 	}
 	go func() {
 		s.cron.Start()
@@ -75,7 +82,7 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 					if j.Instance > 0 {
 						s.cron.Remove(cron.EntryID(j.Instance))
 					}
-					job, ok := s.Jobs[j.Name]
+					job, ok := s.jobs[j.Name]
 					if ok {
 						job.SetArg(j.Arg)
 					}
@@ -99,14 +106,36 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 	return s, nil
 }
 
+func (s *JobSvc) AddJobs(jobs ...IJob) error {
+	for _, j := range jobs {
+		s.jobs[j.GetName()] = j
+		err := s.Save(mdl.Job{
+			Name:    j.GetName(),
+			Desc:    j.GetDesc(),
+			Cron:    j.GetCron(),
+			Arg:     j.GetArg(),
+			ArgDesc: j.GetArgDesc(),
+		}, clause.OnConflict{
+			Columns: []clause.Column{{
+				Name: "name",
+			}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"desc",
+				"arg_desc",
+				"updated_at",
+			}),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *JobSvc) StartJob(id int64) error {
 	return s.Update(map[string]any{
 		"state": 1,
 	}, id)
-}
-
-func (s *JobSvc) Stop() error {
-	return s.cron.Stop().Err()
 }
 
 func (s *JobSvc) StopJob(id int64) error {

@@ -6,7 +6,7 @@ import (
 
 type Job struct {
 	mdl.Mdl
-	Name     string `gorm:"not null" json:"name"`
+	Name     string `gorm:"uniqueIndex;not null" json:"name"`
 	Desc     string `gorm:"" json:"desc"`
 	Cron     string `gorm:"not null" json:"cron"`
 	Arg      string `gorm:"" json:"arg"`
