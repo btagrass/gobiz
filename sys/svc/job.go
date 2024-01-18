@@ -105,6 +105,10 @@ func (s *JobSvc) StartJob(id int64) error {
 	}, id)
 }
 
+func (s *JobSvc) Stop() error {
+	return s.cron.Stop().Err()
+}
+
 func (s *JobSvc) StopJob(id int64) error {
 	return s.Update(map[string]any{
 		"state": 0,
