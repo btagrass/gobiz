@@ -1,5 +1,3 @@
-#!/bin/sh
-
 echo
 echo --- Prepare ---
 echo [i] Upgrading packages...
