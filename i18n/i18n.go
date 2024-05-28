@@ -3,7 +3,9 @@ package i18n
 import (
 	"fmt"
 	"io"
+	"strings"
 
+	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 )
 
@@ -24,5 +26,12 @@ func Load(file io.Reader, types ...string) error {
 
 func T(key string, args ...any) string {
 	format := locale.GetString(key)
+	for i := 0; i < len(args); i++ {
+		k, ok := strings.CutPrefix(cast.ToString(args[i]), "$")
+		if !ok {
+			continue
+		}
+		args[i] = locale.GetString(k)
+	}
 	return fmt.Sprintf(format, args...)
 }
