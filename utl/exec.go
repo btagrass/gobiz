@@ -1,7 +1,7 @@
 package utl
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
 	"time"
 
@@ -15,7 +15,7 @@ func Command(cmds ...string) (string, error) {
 		cs := Split(c, ' ')
 		output, err = exec.Command(cs[0], cs[1:]...).CombinedOutput()
 		if err != nil {
-			return "", fmt.Errorf(string(output))
+			return "", errors.New(string(output))
 		}
 	}
 	return string(output), err

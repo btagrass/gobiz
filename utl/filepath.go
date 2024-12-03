@@ -2,20 +2,34 @@ package utl
 
 import (
 	"archive/zip"
+	"crypto/md5"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
-
-	"github.com/sirupsen/logrus"
+	"strings"
+	"time"
 )
 
 func CopyFile(inFilePath, outFilePath string) error {
+	err := MakeDir(filepath.Dir(outFilePath))
+	if err != nil {
+		return err
+	}
 	data, err := os.ReadFile(inFilePath)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(outFilePath, data, os.ModePerm)
+	err = os.WriteFile(outFilePath, data, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	inFileInfo, err := os.Stat(inFilePath)
+	if err != nil {
+		return err
+	}
+	return os.Chtimes(outFilePath, time.Now(), inFileInfo.ModTime())
 }
 
 func Exist(name string) bool {
@@ -26,17 +40,32 @@ func Exist(name string) bool {
 	return len(matches) > 0
 }
 
-func Glob(patterns ...string) []string {
+func Glob(path string, patterns ...string) []string {
 	var files []string
-	for _, p := range patterns {
-		matches, err := filepath.Glob(p)
-		if err != nil {
-			logrus.Error(err)
-			continue
+	filepath.WalkDir(path, func(path string, _ fs.DirEntry, _ error) error {
+		for _, p := range patterns {
+			matches, _ := filepath.Glob(fmt.Sprintf("%s/%s", path, p))
+			files = append(files, matches...)
+			matches, _ = filepath.Glob(fmt.Sprintf("%s/%s", path, strings.ToUpper(p)))
+			files = append(files, matches...)
 		}
-		files = append(files, matches...)
-	}
+		return nil
+	})
 	return files
+}
+
+func HashFile(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	hash := md5.New()
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 func MakeDir(names ...string) error {

@@ -3,8 +3,8 @@ package i18n
 import (
 	"fmt"
 	"io"
-	"strings"
 
+	"github.com/btagrass/gobiz/utl"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 )
@@ -27,11 +27,12 @@ func Load(file io.Reader, types ...string) error {
 func T(key string, args ...any) string {
 	format := locale.GetString(key)
 	for i := 0; i < len(args); i++ {
-		k, ok := strings.CutPrefix(cast.ToString(args[i]), "$")
-		if !ok {
-			continue
+		keys := utl.Split(cast.ToString(args[i]), '$')
+		var val string
+		for _, k := range keys {
+			val += locale.GetString(k)
 		}
-		args[i] = locale.GetString(k)
+		args[i] = val
 	}
 	return fmt.Sprintf(format, args...)
 }

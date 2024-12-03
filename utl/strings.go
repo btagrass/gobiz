@@ -5,8 +5,8 @@ import (
 )
 
 func Contains(s string, substrs ...string) bool {
-	for _, sb := range substrs {
-		if strings.Contains(s, sb) {
+	for _, b := range substrs {
+		if strings.Contains(s, b) {
 			return true
 		}
 	}
@@ -15,7 +15,7 @@ func Contains(s string, substrs ...string) bool {
 
 func HasPrefix(s string, prefixs ...string) bool {
 	for _, p := range prefixs {
-		if strings.HasPrefix(s, p) {
+		if strings.HasPrefix(s, p) || strings.HasPrefix(s, strings.ToUpper(p)) {
 			return true
 		}
 	}
@@ -23,8 +23,8 @@ func HasPrefix(s string, prefixs ...string) bool {
 }
 
 func HasSuffix(s string, suffixs ...string) bool {
-	for _, sf := range suffixs {
-		if strings.HasSuffix(s, sf) {
+	for _, f := range suffixs {
+		if strings.HasSuffix(s, f) || strings.HasSuffix(s, strings.ToUpper(f)) {
 			return true
 		}
 	}

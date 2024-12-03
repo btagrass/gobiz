@@ -1,22 +1,46 @@
 package utl
 
 import (
+	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/abema/go-mp4"
+	"github.com/corona10/goimagehash"
 	"github.com/dsoprea/go-exif/v3"
-	exifc "github.com/dsoprea/go-exif/v3/common"
+	exic "github.com/dsoprea/go-exif/v3/common"
 	jpegs "github.com/dsoprea/go-jpeg-image-structure/v2"
 	pngs "github.com/dsoprea/go-png-image-structure/v2"
+	exifv1 "github.com/rwcarlsen/goexif/exif"
 	"github.com/spf13/cast"
 	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
-func ReadMetadata(filePath string) (map[string]any, error) {
-	data := make(map[string]any)
-	if HasSuffix(filePath, ".jpg", ".png") {
+func HashImage(filePath string) (uint64, error) {
+	if !HasSuffix(filePath, ".jpg", ".png") {
+		return 0, fmt.Errorf("format not supported")
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	image, _, err := image.Decode(file)
+	if err != nil {
+		return 0, err
+	}
+	hash, err := goimagehash.DifferenceHash(image)
+	if err != nil {
+		return 0, err
+	}
+	return hash.GetHash(), nil
+}
+
+func ReadMetadata(filePath string) (map[string]string, error) {
+	data := make(map[string]string)
+	if HasSuffix(filePath, ".jpg", ".png", ".webp") {
 		exifs, err := exif.SearchFileAndExtractExif(filePath)
 		if err != nil {
 			return nil, err
@@ -26,15 +50,20 @@ func ReadMetadata(filePath string) (map[string]any, error) {
 			return nil, err
 		}
 		for _, t := range tags {
-			if Contains(t.TagName, "DateTime") {
-				dateTime, err := time.Parse("2006:01:02 15:04:05", cast.ToString(t.Value))
-				if err != nil {
-					return nil, err
-				}
-				t.Value = dateTime.Format(time.DateTime)
-			}
-			data[t.TagName] = t.Value
+			data[t.TagName] = t.FormattedFirst
 		}
+		file, err := os.Open(filePath)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+		ex, err := exifv1.Decode(file)
+		if err != nil {
+			return nil, err
+		}
+		lat, lon, _ := ex.LatLong()
+		data["GPSLatitude"] = cast.ToString(lat)
+		data["GPSLongitude"] = cast.ToString(lon)
 	} else if HasSuffix(filePath, ".mov", ".mp4") {
 		file, err := os.Open(filePath)
 		if err != nil {
@@ -47,12 +76,14 @@ func ReadMetadata(filePath string) (map[string]any, error) {
 		}
 		if len(boxes) > 0 {
 			mvhd := boxes[0].Payload.(*mp4.Mvhd)
-			data["CreationTime"] = cast.ToTime(mvhd.GetCreationTime()).AddDate(-66, 0, 0).Format(time.DateTime)
-			data["ModificationTime"] = cast.ToTime(mvhd.GetModificationTime()).AddDate(-66, 0, 0).Format(time.DateTime)
-			data["Timescale"] = mvhd.Timescale
-			data["Duration"] = mvhd.GetDuration()
-			data["Rate"] = mvhd.Rate
-			data["Volume"] = mvhd.Volume
+			dateUtc := time.Date(1904, 1, 1, 0, 0, 0, 0, time.UTC)
+			loc, _ := time.LoadLocation("Local")
+			data["CreationTime"] = dateUtc.Add(time.Duration(mvhd.GetCreationTime()) * time.Second).In(loc).Format("2006:01:02 15:04:05")
+			data["ModificationTime"] = dateUtc.Add(time.Duration(mvhd.GetModificationTime()) * time.Second).Format("2006:01:02 15:04:05")
+			data["Timescale"] = string(mvhd.Timescale)
+			data["Duration"] = string(mvhd.GetDuration())
+			data["Rate"] = string(mvhd.Rate)
+			data["Volume"] = string(mvhd.Volume)
 		}
 	}
 	return data, nil
@@ -76,9 +107,9 @@ func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
 				return err
 			}
 		}
-		ifdBuilder, _ := exifBuilder.ChildWithTagId(exifc.IfdExifStandardIfdIdentity.TagId())
+		ifdBuilder, _ := exifBuilder.ChildWithTagId(exic.IfdExifStandardIfdIdentity.TagId())
 		if ifdBuilder == nil {
-			mapping, err := exifc.NewIfdMappingWithStandard()
+			mapping, err := exic.NewIfdMappingWithStandard()
 			if err != nil {
 				return err
 			}
@@ -87,7 +118,7 @@ func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
 			if err != nil {
 				return err
 			}
-			ifdBuilder = exif.NewIfdBuilder(mapping, index, exifc.IfdExifStandardIfdIdentity, exifc.EncodeDefaultByteOrder)
+			ifdBuilder = exif.NewIfdBuilder(mapping, index, exic.IfdExifStandardIfdIdentity, exic.EncodeDefaultByteOrder)
 			err = exifBuilder.AddChildIb(ifdBuilder)
 			if err != nil {
 				return err
@@ -129,9 +160,9 @@ func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
 		if err != nil {
 			return err
 		}
-		ifdBuilder, _ := exifBuilder.ChildWithTagId(exifc.IfdExifStandardIfdIdentity.TagId())
+		ifdBuilder, _ := exifBuilder.ChildWithTagId(exic.IfdExifStandardIfdIdentity.TagId())
 		if ifdBuilder == nil {
-			mapping, err := exifc.NewIfdMappingWithStandard()
+			mapping, err := exic.NewIfdMappingWithStandard()
 			if err != nil {
 				return err
 			}
@@ -140,7 +171,7 @@ func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
 			if err != nil {
 				return err
 			}
-			ifdBuilder = exif.NewIfdBuilder(mapping, index, exifc.IfdExifStandardIfdIdentity, exifc.EncodeDefaultByteOrder)
+			ifdBuilder = exif.NewIfdBuilder(mapping, index, exic.IfdExifStandardIfdIdentity, exic.EncodeDefaultByteOrder)
 			err = exifBuilder.AddChildIb(ifdBuilder)
 			if err != nil {
 				return err

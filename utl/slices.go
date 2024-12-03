@@ -27,14 +27,20 @@ func Difference[T any](s1, s2 []T, equal func(t1, t2 T) bool) ([]T, []T) {
 	return s1d, s2d
 }
 
-func ForParallel[T any](s []T, iterate func(t T) error, size int) {
+func ForParallel[T any](s []T, iterate func(t T) error, callback func(i int), size int) {
 	var group sync.WaitGroup
-	pool, err := ants.NewPoolWithFunc(size, func(i any) {
-		err := iterate(i.(T))
+	var locker sync.Mutex
+	var finished int
+	pool, err := ants.NewPoolWithFunc(size, func(a any) {
+		err := iterate(a.(T))
 		if err != nil {
 			logrus.Error(err)
 		}
 		group.Done()
+		locker.Lock()
+		finished++
+		locker.Unlock()
+		callback(finished)
 	})
 	if err != nil {
 		logrus.Error(err)

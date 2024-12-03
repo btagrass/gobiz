@@ -162,6 +162,11 @@ func NewDataSvc[M any](prefix string, mdls ...any) *DataSvc[M] {
 	return s
 }
 
+func (s *DataSvc[M]) Exist(conds ...any) bool {
+	m, _ := s.Get(conds...)
+	return m != nil
+}
+
 func (s *DataSvc[M]) Get(conds ...any) (*M, error) {
 	var m M
 	err := db.Preload(clause.Associations).First(&m, conds...).Error
