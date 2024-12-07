@@ -1,6 +1,8 @@
 package mdl
 
-import "github.com/btagrass/gobiz/mdl"
+import (
+	"github.com/btagrass/gobiz/mdl"
+)
 
 type Dict struct {
 	mdl.Mdl

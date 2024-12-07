@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -45,8 +44,6 @@ func Glob(path string, patterns ...string) []string {
 	filepath.WalkDir(path, func(path string, _ fs.DirEntry, _ error) error {
 		for _, p := range patterns {
 			matches, _ := filepath.Glob(fmt.Sprintf("%s/%s", path, p))
-			files = append(files, matches...)
-			matches, _ = filepath.Glob(fmt.Sprintf("%s/%s", path, strings.ToUpper(p)))
 			files = append(files, matches...)
 		}
 		return nil

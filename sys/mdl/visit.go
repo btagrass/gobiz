@@ -1,6 +1,8 @@
 package mdl
 
-import "github.com/btagrass/gobiz/mdl"
+import (
+	"github.com/btagrass/gobiz/mdl"
+)
 
 type Visit struct {
 	mdl.Mdl
