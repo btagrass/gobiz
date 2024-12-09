@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 	"github.com/btagrass/gobiz/app"
 	"github.com/btagrass/gobiz/utl"
 	"github.com/glebarez/sqlite"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
@@ -39,13 +39,15 @@ func init() {
 	}
 	uri, err := url.Parse(dsn)
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	if uri.Scheme == "sqlite" {
 		dsn = strings.TrimPrefix(uri.String(), fmt.Sprintf("%s://", uri.Scheme))
 		err = utl.MakeDir(filepath.Dir(dsn))
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 		dialector = sqlite.Open(dsn)
 	} else if uri.Scheme == "mysql" {
@@ -54,17 +56,28 @@ func init() {
 		name := strings.TrimPrefix(uri.Path, "/")
 		sdb, err := sql.Open("mysql", utl.Replace(dsn, name, "information_schema"))
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 		defer sdb.Close()
 		_, err = sdb.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s DEFAULT CHARACTER SET utf8mb4 DEFAULT COLLATE utf8mb4_general_ci;", name))
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 		dialector = mysql.New(mysql.Config{
 			DSN:               dsn,
 			DefaultStringSize: 100,
 		})
+	}
+	var level logger.LogLevel
+	switch app.LogLevel {
+	case slog.LevelWarn:
+		level = logger.Warn
+	case slog.LevelError:
+		level = logger.Error
+	default:
+		level = logger.Info
 	}
 	db, err = gorm.Open(dialector, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
@@ -75,19 +88,21 @@ func init() {
 			logger.Config{
 				SlowThreshold:             200 * time.Millisecond,
 				IgnoreRecordNotFoundError: true,
-				LogLevel:                  logger.LogLevel(logrus.GetLevel() - 1),
+				LogLevel:                  level,
 			},
 		),
 		PrepareStmt:                              true,
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	if uri.Scheme == "sqlite" {
 		err = db.Exec("PRAGMA journal_mode=WAL;").Error
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}
 	err = db.Callback().Create().Before("gorm:create").Register("gorm:id", func(db *gorm.DB) {
@@ -114,11 +129,13 @@ func init() {
 		}
 	})
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	sdb, err := db.DB()
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	sdb.SetMaxIdleConns(viper.GetInt("dsn.maxIdleConns"))
 	sdb.SetMaxOpenConns(viper.GetInt("dsn.maxOpenConns"))
@@ -151,12 +168,12 @@ func NewDataSvc[M any](prefix string, mdls ...any) *DataSvc[M] {
 	}
 	err := db.AutoMigrate(new(M))
 	if err != nil {
-		logrus.Error(err)
+		slog.Error(err.Error())
 	}
 	for _, m := range mdls {
 		err := db.AutoMigrate(m)
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 		}
 	}
 	return s

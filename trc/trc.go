@@ -3,6 +3,7 @@ package trc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"reflect"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/btagrass/gobiz/svc"
 	"github.com/btagrass/gobiz/utl"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 )
 
@@ -58,7 +58,7 @@ func (t *Trc[T]) Clean(duration time.Duration) error {
 		}
 		dateTime, err := time.Parse("20060102", ks[2])
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 			continue
 		}
 		if currentTime.Sub(dateTime) > duration {
@@ -101,14 +101,14 @@ func (t *Trc[T]) Run(tasks []T, process func(T) error) error {
 	for _, mt := range matchedTasks {
 		go func(task T) {
 			started := t.start(task)
-			logrus.WithField("code", task.GetCode()).Debug("Start ", started, ". ", task)
+			slog.Debug("Start", "started", started, "code", task.GetCode())
 			if started {
 				err := process(task)
 				if err != nil {
-					logrus.WithField("code", task.GetCode()).Error(err)
+					slog.Error(err.Error(), "code", task.GetCode())
 				}
 				stopped := t.stop(task)
-				logrus.WithField("code", task.GetCode()).Debug("Stop ", stopped, ". ", task)
+				slog.Debug("Stop", "stopped", stopped, "code", task.GetCode())
 			}
 		}(mt)
 	}

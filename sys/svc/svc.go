@@ -1,9 +1,11 @@
 package svc
 
 import (
+	"log/slog"
+	"os"
+
 	"github.com/btagrass/gobiz/svc"
 	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 )
 
 func Init(svcs ...string) {
@@ -11,14 +13,16 @@ func Init(svcs ...string) {
 		svc.Inject(NewDeptSvc)
 		err := svc.Migrate("INSERT IGNORE INTO sys_dept VALUES (300000000000001, '2023-01-29 00:00:00.000', NULL, NULL, 0, 'Kskj', '', '', 1)")
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}
 	if len(svcs) == 0 || lo.Contains(svcs, "user") {
 		svc.Inject(NewUserSvc)
 		err := svc.Migrate("INSERT IGNORE INTO sys_user VALUES (300000000000001, '2023-01-29 00:00:00.000', NULL, NULL, 300000000000001, 'admin', NULL, '15800000000', '$2a$10$enX7NxYTZZo9yLJQN6jXF.B6FGg7d9Q5eTW5off94hJZSa5AO9av2', 0)")
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}
 	if len(svcs) == 0 || lo.Contains(svcs, "dict") {
@@ -28,7 +32,8 @@ func Init(svcs ...string) {
 			"INSERT IGNORE INTO sys_dict VALUES (300000001060102, '2023-01-29 00:00:00.000', NULL, NULL, 'CacheType', 2, 'Remote', 2)",
 		)
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}
 	if len(svcs) == 0 || lo.Contains(svcs, "job") {
@@ -38,7 +43,8 @@ func Init(svcs ...string) {
 			"INSERT IGNORE INTO sys_dict VALUES (300000001070102, '2023-01-29 00:00:00.000', NULL, NULL, 'JobState', 0, 'Stopped', 2)",
 		)
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}
 	if len(svcs) == 0 || lo.Contains(svcs, "resource") {
@@ -61,14 +67,16 @@ func Init(svcs ...string) {
 			"INSERT IGNORE INTO sys_dict VALUES (300000001040203, '2023-01-29 00:00:00.000', NULL, NULL, 'ResourceAct', 3, 'POST', 3)",
 		)
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}
 	if len(svcs) == 0 || lo.Contains(svcs, "role") {
 		svc.Inject(NewRoleSvc)
 		err := svc.Migrate("INSERT IGNORE INTO sys_role VALUES (300000000000001, '2023-01-29 00:00:00.000', NULL, NULL, 'Admin')")
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 	}
 	if len(svcs) == 0 || lo.Contains(svcs, "server") {

@@ -2,10 +2,9 @@ package ntp
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 type TcpServer struct {
@@ -43,7 +42,7 @@ func (s *TcpServer) Open() error {
 			conn := v.(net.Conn)
 			_, err = conn.Write(p.Data)
 			if err != nil {
-				logrus.Error(err)
+				slog.Error(err.Error())
 			}
 		}
 	}()
@@ -52,13 +51,13 @@ func (s *TcpServer) Open() error {
 		data := make([]byte, DataSize)
 		conn, err := s.listener.Accept()
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 			continue
 		}
 		s.conns.Store(conn.RemoteAddr().String(), conn)
 		n, err := conn.Read(data)
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 			continue
 		}
 		s.recvChan <- &Packet{
@@ -73,7 +72,7 @@ func (s *TcpServer) Close() error {
 		c := v.(net.Conn)
 		err := c.Close()
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 		}
 		s.conns.Delete(k)
 		return true

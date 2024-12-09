@@ -3,6 +3,7 @@ package htp
 import (
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,7 +13,6 @@ import (
 	"github.com/btagrass/gobiz/app"
 	"github.com/btagrass/gobiz/utl"
 	"github.com/go-resty/resty/v2"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 )
@@ -55,7 +55,7 @@ func Delete(url string, headers map[string]string, r ...any) (*resty.Response, e
 		req.SetResult(r[0])
 	}
 	res, err := req.Delete(GetFullUrl(url))
-	logrus.Debugf("method: %s, url: %s -> %s", req.Method, req.URL, res)
+	slog.Debug("", "method", req.Method, "url", req.URL, "result", res)
 	return res, err
 }
 
@@ -73,7 +73,7 @@ func Get(url string, headers map[string]string, r ...any) (*resty.Response, erro
 		req.SetResult(r[0])
 	}
 	res, err := req.Get(GetFullUrl(url))
-	logrus.Debugf("method: %s, url: %s -> %s", req.Method, req.URL, res)
+	slog.Debug("", "method", req.Method, "url", req.URL, "result", res)
 	return res, err
 }
 
@@ -109,7 +109,7 @@ func Post(url string, headers map[string]string, data any, r ...any) (*resty.Res
 		req.SetResult(r[0])
 	}
 	res, err := req.Post(GetFullUrl(url))
-	logrus.Debugf("method: %s, url: %s, data: %s -> %s", req.Method, req.URL, data, res)
+	slog.Debug("", "method", req.Method, "url", req.URL, "data", data, "result", res)
 	return res, err
 }
 
@@ -127,7 +127,7 @@ func PostFile(url string, headers map[string]string, files map[string]string, r 
 		req.SetResult(r[0])
 	}
 	res, err := req.Post(GetFullUrl(url))
-	logrus.Debugf("method: %s, url: %s, data: %s -> %s", req.Method, req.URL, files, res)
+	slog.Debug("", "method", req.Method, "url", req.URL, "data", files, "result", res)
 	return res, err
 }
 
@@ -148,7 +148,7 @@ func PostForm(url string, headers map[string]string, data map[string]string, r .
 		req.SetResult(r[0])
 	}
 	res, err := req.Post(GetFullUrl(url))
-	logrus.Debugf("method: %s, url: %s, data: %s -> %s", req.Method, req.URL, data, res)
+	slog.Debug("", "method", req.Method, "url", req.URL, "data", data, "result", res)
 	return res, err
 }
 
@@ -169,7 +169,7 @@ func Put(url string, headers map[string]string, data any, r ...any) (*resty.Resp
 		req.SetResult(r[0])
 	}
 	res, err := req.Put(GetFullUrl(url))
-	logrus.Debugf("method: %s, url: %s, data: %s -> %s", req.Method, req.URL, data, res)
+	slog.Debug("", "method", req.Method, "url", req.URL, "data", data, "result", res)
 	return res, err
 }
 
@@ -186,7 +186,7 @@ func SaveFile(url string, headers map[string]string, file ...string) (*resty.Res
 		SetHeaders(headers).
 		SetOutput(filePath)
 	res, err := req.Get(GetFullUrl(url))
-	logrus.Debugf("method: %s, url: %s -> %s", req.Method, req.URL, res)
+	slog.Debug("", "method", req.Method, "url", req.URL, "result", res)
 	return res, err
 }
 

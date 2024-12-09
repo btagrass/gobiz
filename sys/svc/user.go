@@ -2,6 +2,8 @@ package svc
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/btagrass/gobiz/svc"
@@ -11,7 +13,6 @@ import (
 	gormadapter "github.com/casbin/gorm-adapter/v3"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/samber/do"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -35,15 +36,18 @@ func NewUserSvc(i *do.Injector) (*UserSvc, error) {
 	model.AddDef("m", "m", "r.sub == '300000000000001' || r.obj == '/mgt/sys/resources/menu' || g(r.sub, p.sub) && keyMatch2(r.obj, p.obj) && r.act == p.act") // 匹配
 	adapter, err := gormadapter.NewAdapterByDBUseTableName(s.Make(), "sys", "rule")
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	perm, err := casbin.NewSyncedEnforcer(model, adapter)
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	err = perm.LoadPolicy()
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	s.Perm = perm
 	return s, nil

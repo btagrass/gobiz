@@ -1,7 +1,9 @@
 package cmd
 
 import (
-	"github.com/sirupsen/logrus"
+	"log/slog"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +19,7 @@ func Execute(name, description string, cmds ...*cobra.Command) {
 	}
 	err := cmd.Execute()
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 }

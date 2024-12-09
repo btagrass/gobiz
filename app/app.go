@@ -2,19 +2,21 @@ package app
 
 import (
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/btagrass/gobiz/utl"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
 var (
-	Dir     string
-	DataDir string
-	LogFile io.Writer
+	Dir      string
+	DataDir  string
+	LogFile  io.Writer
+	LogLevel slog.Leveler
 )
 
 func init() {
@@ -22,19 +24,22 @@ func init() {
 	var err error
 	Dir, err = filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	confPath := filepath.Join(Dir, "conf/app.*")
 	confFiles, err := filepath.Glob(confPath)
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	for _, f := range confFiles {
 		v := viper.New()
 		v.SetConfigFile(f)
 		err = v.ReadInConfig()
 		if err != nil {
-			logrus.Fatal(err)
+			slog.Error(err.Error())
+			os.Exit(1)
 		}
 		viper.MergeConfigMap(v.AllSettings())
 	}
@@ -46,7 +51,8 @@ func init() {
 	}
 	err = utl.MakeDir(DataDir)
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 	// Log
 	logPath := filepath.Join(Dir, "logs/%Y%m%d.log")
@@ -60,12 +66,21 @@ func init() {
 		rotatelogs.WithRotationCount(logCount),
 	)
 	if err != nil {
-		logrus.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
-	logrus.SetOutput(io.MultiWriter(os.Stdout, LogFile))
-	logLevel, err := logrus.ParseLevel(viper.GetString("log.level"))
-	if err == nil {
-		logrus.SetLevel(logLevel)
+	switch strings.ToLower(viper.GetString("log.level")) {
+	case "info":
+		LogLevel = slog.LevelInfo
+	case "warn":
+		LogLevel = slog.LevelWarn
+	case "error":
+		LogLevel = slog.LevelError
+	default:
+		LogLevel = slog.LevelDebug
 	}
-	logrus.SetReportCaller(true)
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.MultiWriter(os.Stdout, LogFile), &slog.HandlerOptions{
+		AddSource: true,
+		Level:     LogLevel,
+	})))
 }

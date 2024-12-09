@@ -2,9 +2,8 @@ package ntp
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
-
-	"github.com/sirupsen/logrus"
 )
 
 type UdpServer struct {
@@ -38,7 +37,7 @@ func (s *UdpServer) Open() error {
 		for p := range s.sendChan {
 			_, err = s.conn.WriteTo(p.Data, p.Addr)
 			if err != nil {
-				logrus.Error(err)
+				slog.Error(err.Error())
 			}
 		}
 	}()
@@ -47,7 +46,7 @@ func (s *UdpServer) Open() error {
 		data := make([]byte, DataSize)
 		n, addr, err := s.conn.ReadFrom(data)
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 			continue
 		}
 		s.recvChan <- &Packet{

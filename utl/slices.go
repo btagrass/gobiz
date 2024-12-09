@@ -1,11 +1,11 @@
 package utl
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
 	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 )
 
 func Difference[T any](s1, s2 []T, equal func(t1, t2 T) bool) ([]T, []T) {
@@ -34,7 +34,7 @@ func ForParallel[T any](s []T, iterate func(t T) error, callback func(i int), si
 	pool, err := ants.NewPoolWithFunc(size, func(a any) {
 		err := iterate(a.(T))
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 		}
 		group.Done()
 		locker.Lock()
@@ -43,14 +43,14 @@ func ForParallel[T any](s []T, iterate func(t T) error, callback func(i int), si
 		callback(finished)
 	})
 	if err != nil {
-		logrus.Error(err)
+		slog.Error(err.Error())
 	}
 	defer pool.Release()
 	for _, v := range s {
 		group.Add(1)
 		err = pool.Invoke(v)
 		if err != nil {
-			logrus.Error(err)
+			slog.Error(err.Error())
 		}
 	}
 	group.Wait()

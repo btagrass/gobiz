@@ -1,13 +1,13 @@
 package svc
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/btagrass/gobiz/svc"
 	"github.com/btagrass/gobiz/sys/mdl"
 	"github.com/robfig/cron/v3"
 	"github.com/samber/do"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gorm.io/gorm/clause"
 )
@@ -47,7 +47,7 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 		for range ticker.C {
 			jobs, _, err := s.List()
 			if err != nil {
-				logrus.Error(err)
+				slog.Error(err.Error())
 			}
 			for _, j := range jobs {
 				key := s.GetFullKey(j.Id)
@@ -60,7 +60,7 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 						"instance": 0,
 					}, j.Id)
 					if err != nil {
-						logrus.Error(err)
+						slog.Error(err.Error())
 						continue
 					}
 					s.Local.Delete(key)
@@ -74,7 +74,7 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 								"updated_at": entry.Prev,
 							}, j.Id)
 							if err != nil {
-								logrus.Error(err)
+								slog.Error(err.Error())
 							}
 							continue
 						}
@@ -88,14 +88,14 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 					}
 					instance, err := s.cron.AddJob(j.Cron, job)
 					if err != nil {
-						logrus.Error(err)
+						slog.Error(err.Error())
 						continue
 					}
 					err = s.Update(map[string]any{
 						"instance": instance,
 					}, j.Id)
 					if err != nil {
-						logrus.Error(err)
+						slog.Error(err.Error())
 						continue
 					}
 					s.Local.SetDefault(key, j)

@@ -2,10 +2,9 @@ package utl
 
 import (
 	"errors"
+	"log/slog"
 	"os/exec"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 func Command(cmds ...string) (string, error) {
@@ -22,6 +21,5 @@ func Command(cmds ...string) (string, error) {
 }
 
 func ElapsedTime(method string, begin time.Time) {
-	elapsedTime := time.Since(begin)
-	logrus.Infof("method: %s == %dms", method, elapsedTime.Milliseconds())
+	slog.Info("ElapsedTime", method, time.Since(begin).Milliseconds())
 }
