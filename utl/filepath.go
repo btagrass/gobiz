@@ -11,24 +11,24 @@ import (
 	"time"
 )
 
-func CopyFile(inFilePath, outFilePath string) error {
-	err := MakeDir(filepath.Dir(outFilePath))
+func CopyFile(srcFilePath, dstFilePath string) error {
+	err := MakeDir(filepath.Dir(dstFilePath))
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(inFilePath)
+	data, err := os.ReadFile(srcFilePath)
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(outFilePath, data, os.ModePerm)
+	err = os.WriteFile(dstFilePath, data, os.ModePerm)
 	if err != nil {
 		return err
 	}
-	inFileInfo, err := os.Stat(inFilePath)
+	srcFileInfo, err := os.Stat(srcFilePath)
 	if err != nil {
 		return err
 	}
-	return os.Chtimes(outFilePath, time.Now(), inFileInfo.ModTime())
+	return os.Chtimes(dstFilePath, time.Now(), srcFileInfo.ModTime())
 }
 
 func Exist(name string) bool {
@@ -39,9 +39,9 @@ func Exist(name string) bool {
 	return len(matches) > 0
 }
 
-func Glob(path string, patterns ...string) []string {
+func GlobDir(name string, patterns ...string) []string {
 	var files []string
-	filepath.WalkDir(path, func(path string, _ fs.DirEntry, _ error) error {
+	filepath.WalkDir(name, func(path string, _ fs.DirEntry, _ error) error {
 		for _, p := range patterns {
 			matches, _ := filepath.Glob(fmt.Sprintf("%s/%s", path, p))
 			files = append(files, matches...)
@@ -65,21 +65,22 @@ func HashFile(filePath string) (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
-func MakeDir(names ...string) error {
-	for _, name := range names {
-		if !Exist(name) {
-			err := os.MkdirAll(name, os.ModePerm)
-			if err != nil {
-				return err
-			}
+func MakeDir(dirs ...string) error {
+	for _, d := range dirs {
+		if Exist(d) {
+			continue
+		}
+		err := os.MkdirAll(d, os.ModePerm)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 func Remove(names ...string) error {
-	for _, name := range names {
-		matches, err := filepath.Glob(name)
+	for _, n := range names {
+		matches, err := filepath.Glob(n)
 		if err != nil {
 			return err
 		}
@@ -93,27 +94,27 @@ func Remove(names ...string) error {
 	return nil
 }
 
-func RenameFile(inFilePath, outFilePath string) error {
-	err := MakeDir(filepath.Dir(outFilePath))
+func RenameFile(srcFilePath, dstFilePath string) error {
+	err := MakeDir(filepath.Dir(dstFilePath))
 	if err != nil {
 		return err
 	}
-	err = os.Rename(inFilePath, outFilePath)
+	err = os.Rename(srcFilePath, dstFilePath)
 	return err
 }
 
-func UnzipFile(inFilePath string, outFilePath ...string) error {
-	var outDir string
-	if len(outFilePath) > 0 {
-		outDir = outFilePath[0]
+func UnzipFile(srcFilePath string, dstFilePath ...string) error {
+	var dstDir string
+	if len(dstFilePath) > 0 {
+		dstDir = dstFilePath[0]
 	}
-	reader, err := zip.OpenReader(inFilePath)
+	srcReader, err := zip.OpenReader(srcFilePath)
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
-	for _, f := range reader.File {
-		filePath := filepath.Join(outDir, f.Name)
+	defer srcReader.Close()
+	for _, f := range srcReader.File {
+		filePath := filepath.Join(dstDir, f.Name)
 		if f.FileInfo().IsDir() {
 			err = MakeDir(filePath)
 			if err != nil {
@@ -121,17 +122,17 @@ func UnzipFile(inFilePath string, outFilePath ...string) error {
 			}
 			continue
 		}
-		outFile, err := os.Create(filePath)
+		dstFile, err := os.Create(filePath)
 		if err != nil {
 			return err
 		}
-		defer outFile.Close()
-		inFile, err := f.Open()
+		defer dstFile.Close()
+		srcFile, err := f.Open()
 		if err != nil {
 			return err
 		}
-		defer inFile.Close()
-		_, err = io.Copy(outFile, inFile)
+		defer srcFile.Close()
+		_, err = io.Copy(dstFile, srcFile)
 		if err != nil {
 			return err
 		}
@@ -139,12 +140,12 @@ func UnzipFile(inFilePath string, outFilePath ...string) error {
 	return nil
 }
 
-func ZipFile(inFilePath string, outFilePath ...string) error {
-	var outDir string
-	if len(outFilePath) > 0 {
-		outDir = outFilePath[0]
+func ZipFile(srcFilePath string, dstFilePath ...string) error {
+	var dstDir string
+	if len(dstFilePath) > 0 {
+		dstDir = dstFilePath[0]
 	}
-	filePath := filepath.Join(outDir, fmt.Sprintf("%s.zip", inFilePath))
+	filePath := filepath.Join(dstDir, fmt.Sprintf("%s.zip", srcFilePath))
 	outFile, err := os.Create(filePath)
 	if err != nil {
 		return err
@@ -152,7 +153,7 @@ func ZipFile(inFilePath string, outFilePath ...string) error {
 	defer outFile.Close()
 	writer := zip.NewWriter(outFile)
 	defer writer.Close()
-	filepath.Walk(inFilePath, func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(srcFilePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -164,17 +165,17 @@ func ZipFile(inFilePath string, outFilePath ...string) error {
 		if !info.IsDir() {
 			fileHeader.Method = zip.Deflate
 		}
-		outFile, err := writer.CreateHeader(fileHeader)
+		dstFile, err := writer.CreateHeader(fileHeader)
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() {
-			inFile, err := os.Open(path)
+			srcFile, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			defer inFile.Close()
-			_, err = io.Copy(outFile, inFile)
+			defer srcFile.Close()
+			_, err = io.Copy(dstFile, srcFile)
 			if err != nil {
 				return err
 			}

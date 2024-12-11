@@ -8,62 +8,48 @@ import (
 	"github.com/samber/lo"
 )
 
-func Difference[T any](s1, s2 []T, equal func(t1, t2 T) bool) ([]T, []T) {
-	var s1d, s2d []T
-	for _, t1 := range s1 {
-		if !lo.ContainsBy(s2, func(t2 T) bool {
-			return equal(t1, t2)
-		}) {
-			s1d = append(s1d, t1)
+func DifferenceFunc[T any](s1, s2 []T, key func(e T) string) ([]T, []T) {
+	m1 := lo.Associate(s1, func(item T) (string, T) {
+		return key(item), item
+	})
+	m2 := lo.Associate(s2, func(item T) (string, T) {
+		return key(item), item
+	})
+	for k := range m1 {
+		_, ok := m2[k]
+		if ok {
+			delete(m1, k)
+			delete(m2, k)
 		}
 	}
-	for _, t2 := range s2 {
-		if !lo.ContainsBy(s1, func(t1 T) bool {
-			return equal(t1, t2)
-		}) {
-			s2d = append(s2d, t2)
-		}
-	}
-	return s1d, s2d
+	return lo.Values(m1), lo.Values(m2)
 }
 
-func ForParallel[T any](s []T, iterate func(t T) error, callback func(i int), size int) {
+func ForParallel[T any](s []T, iterate func(e T) error, callback func(i int), size int) {
 	var group sync.WaitGroup
 	var locker sync.Mutex
-	var finished int
-	pool, err := ants.NewPoolWithFunc(size, func(a any) {
-		err := iterate(a.(T))
+	var index int
+	pool, err := ants.NewPoolWithFunc(size, func(e any) {
+		err := iterate(e.(T))
 		if err != nil {
 			slog.Error(err.Error())
 		}
-		group.Done()
 		locker.Lock()
-		finished++
+		index++
 		locker.Unlock()
-		callback(finished)
+		callback(index)
+		group.Done()
 	})
 	if err != nil {
 		slog.Error(err.Error())
 	}
 	defer pool.Release()
-	for _, v := range s {
+	for _, e := range s {
 		group.Add(1)
-		err = pool.Invoke(v)
+		err = pool.Invoke(e)
 		if err != nil {
 			slog.Error(err.Error())
 		}
 	}
 	group.Wait()
-}
-
-func Intersect[T any](s1, s2 []T, equal func(t1, t2 T) bool) []T {
-	var s1i []T
-	for _, t1 := range s1 {
-		if lo.ContainsBy(s2, func(t2 T) bool {
-			return equal(t1, t2)
-		}) {
-			s1i = append(s1i, t1)
-		}
-	}
-	return s1i
 }

@@ -13,7 +13,6 @@ import (
 	exic "github.com/dsoprea/go-exif/v3/common"
 	jpegs "github.com/dsoprea/go-jpeg-image-structure/v2"
 	pngs "github.com/dsoprea/go-png-image-structure/v2"
-	exifv1 "github.com/rwcarlsen/goexif/exif"
 	"github.com/spf13/cast"
 	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
@@ -40,7 +39,7 @@ func HashImage(filePath string) (uint64, error) {
 
 func ReadMetadata(filePath string) (map[string]string, error) {
 	data := make(map[string]string)
-	if HasSuffix(filePath, ".jpg", ".png", ".webp") {
+	if HasSuffix(filePath, ".jpg", ".png") {
 		exifs, err := exif.SearchFileAndExtractExif(filePath)
 		if err != nil {
 			return nil, err
@@ -50,20 +49,32 @@ func ReadMetadata(filePath string) (map[string]string, error) {
 			return nil, err
 		}
 		for _, t := range tags {
-			data[t.TagName] = t.FormattedFirst
+			if t.TagName == "GPSLatitude" || t.TagName == "GPSLongitude" {
+				values := [3]float64{}
+				rationals, ok := t.Value.([]exic.Rational)
+				if ok {
+					for i, r := range rationals {
+						values[i] = float64(r.Numerator) / float64(r.Denominator)
+					}
+				}
+				data[t.TagName] = cast.ToString(values[0] + values[1]/60 + values[2]/3600.0)
+			} else {
+				data[t.TagName] = t.FormattedFirst
+			}
 		}
-		file, err := os.Open(filePath)
-		if err != nil {
-			return nil, err
-		}
-		defer file.Close()
-		ex, err := exifv1.Decode(file)
-		if err != nil {
-			return nil, err
-		}
-		lat, lon, _ := ex.LatLong()
-		data["GPSLatitude"] = cast.ToString(lat)
-		data["GPSLongitude"] = cast.ToString(lon)
+		// file, err := os.Open(filePath)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// defer file.Close()
+		// ex, err := exifv1.Decode(file)
+		// if err != nil {
+		// 	slog.Error(err.Error())
+		// }
+		// lat, lon, _ := ex.LatLong()
+		// fmt.Println(lat, lon)
+		// data["GPSLatitude"] = cast.ToString(lat)
+		// data["GPSLongitude"] = cast.ToString(lon)
 	} else if HasSuffix(filePath, ".mov", ".mp4") {
 		file, err := os.Open(filePath)
 		if err != nil {
@@ -89,9 +100,9 @@ func ReadMetadata(filePath string) (map[string]string, error) {
 	return data, nil
 }
 
-func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
-	if HasSuffix(inFilePath, ".jpg") {
-		context, err := jpegs.NewJpegMediaParser().ParseFile(inFilePath)
+func WriteMetadata(srcFilePath, dstFilePath string, data map[string]any) error {
+	if HasSuffix(srcFilePath, ".jpg") {
+		context, err := jpegs.NewJpegMediaParser().ParseFile(srcFilePath)
 		if err != nil {
 			return err
 		}
@@ -141,17 +152,17 @@ func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
 		if err != nil {
 			return err
 		}
-		outFile, err := os.Create(outFilePath)
+		dstFile, err := os.Create(dstFilePath)
 		if err != nil {
 			return err
 		}
-		defer outFile.Close()
-		err = segments.Write(outFile)
+		defer dstFile.Close()
+		err = segments.Write(dstFile)
 		if err != nil {
 			return err
 		}
-	} else if HasSuffix(inFilePath, ".png") {
-		context, err := pngs.NewPngMediaParser().ParseFile(inFilePath)
+	} else if HasSuffix(srcFilePath, ".png") {
+		context, err := pngs.NewPngMediaParser().ParseFile(srcFilePath)
 		if err != nil {
 			return err
 		}
@@ -194,30 +205,30 @@ func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
 		if err != nil {
 			return err
 		}
-		outFile, err := os.Create(outFilePath)
+		dstFile, err := os.Create(dstFilePath)
 		if err != nil {
 			return err
 		}
-		defer outFile.Close()
-		err = chunks.WriteTo(outFile)
+		defer dstFile.Close()
+		err = chunks.WriteTo(dstFile)
 		if err != nil {
 			return err
 		}
-	} else if HasSuffix(inFilePath, ".mov", ".mp4") {
-		inFile, err := os.Open(inFilePath)
+	} else if HasSuffix(srcFilePath, ".mov", ".mp4") {
+		srcFile, err := os.Open(srcFilePath)
 		if err != nil {
 			return err
 		}
-		defer inFile.Close()
-		outFile, err := os.Create(outFilePath)
+		defer srcFile.Close()
+		dstFile, err := os.Create(dstFilePath)
 		if err != nil {
 			return err
 		}
-		defer outFile.Close()
-		writer := mp4.NewWriter(outFile)
-		_, err = mp4.ReadBoxStructure(inFile, func(handle *mp4.ReadHandle) (any, error) {
+		defer dstFile.Close()
+		writer := mp4.NewWriter(dstFile)
+		_, err = mp4.ReadBoxStructure(srcFile, func(handle *mp4.ReadHandle) (any, error) {
 			if handle.BoxInfo.Type == mp4.BoxTypeMdat() || !handle.BoxInfo.IsSupportedType() {
-				return nil, writer.CopyBox(inFile, &handle.BoxInfo)
+				return nil, writer.CopyBox(srcFile, &handle.BoxInfo)
 			}
 			_, err = writer.StartBox(&handle.BoxInfo)
 			if err != nil {
@@ -266,17 +277,17 @@ func WriteMetadata(inFilePath, outFilePath string, data map[string]any) error {
 	return nil
 }
 
-func TakeStream(outs map[string]map[string]any, in string, inArgs ...map[string]any) error {
-	inArg := make(map[string]any)
-	if len(inArgs) > 0 {
-		inArg = inArgs[0]
+func TakeStream(dstNames map[string]map[string]any, srcName string, srcArgs ...map[string]any) error {
+	srcArg := make(map[string]any)
+	if len(srcArgs) > 0 {
+		srcArg = srcArgs[0]
 	}
-	if HasPrefix(in, "rtsp://") {
-		inArg["rtsp_transport"] = "tcp"
+	if HasPrefix(srcName, "rtsp://") {
+		srcArg["rtsp_transport"] = "tcp"
 	}
-	stream := ffmpeg.Input(in, inArg)
+	stream := ffmpeg.Input(srcName, srcArg)
 	var streams []*ffmpeg.Stream
-	for k, v := range outs {
+	for k, v := range dstNames {
 		err := MakeDir(filepath.Dir(k))
 		if err != nil {
 			return err
