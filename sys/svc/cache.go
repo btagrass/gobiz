@@ -29,17 +29,17 @@ func (s *CacheSvc) ListCaches(typ string, keywords ...string) ([]mdl.Cache, int6
 		i := 0
 		for k, v := range s.Local.Items() {
 			if utl.Contains(k, keywords...) {
-				valueString, _ := sonic.MarshalString(v.Object)
+				valString, _ := sonic.MarshalString(v.Object)
 				var e int64
 				if v.Expiration > 0 {
 					e = cast.ToInt64(time.Until(time.Unix(0, v.Expiration)).Seconds())
 				}
 				caches = append(caches, mdl.Cache{
-					Id:          cast.ToInt64(i + 1),
-					Key:         k,
-					Value:       v.Object,
-					ValueString: valueString,
-					Expiration:  e,
+					Id:         cast.ToInt64(i + 1),
+					Key:        k,
+					Val:        v.Object,
+					ValString:  valString,
+					Expiration: e,
 				})
 				i++
 			}
@@ -57,14 +57,14 @@ func (s *CacheSvc) ListCaches(typ string, keywords ...string) ([]mdl.Cache, int6
 			} else {
 				v = s.Redis.Get(context.Background(), k).Val()
 			}
-			valueString, _ := sonic.MarshalString(v)
+			valString, _ := sonic.MarshalString(v)
 			e := cast.ToInt64(s.Redis.TTL(context.Background(), k).Val().Seconds())
 			caches = append(caches, mdl.Cache{
-				Id:          cast.ToInt64(i + 1),
-				Key:         k,
-				Value:       v,
-				ValueString: valueString,
-				Expiration:  e,
+				Id:         cast.ToInt64(i + 1),
+				Key:        k,
+				Val:        v,
+				ValString:  valString,
+				Expiration: e,
 			})
 		}
 	}

@@ -17,8 +17,13 @@ import (
 	ffmpeg "github.com/u2takey/ffmpeg-go"
 )
 
+var (
+	ImageFilters = []string{".jpg", ".png"}
+	VideoFilters = []string{".mov", ".mp4"}
+)
+
 func HashImage(filePath string) (uint64, error) {
-	if !HasSuffix(filePath, ".jpg", ".png") {
+	if !HasSuffix(filePath, ImageFilters...) {
 		return 0, fmt.Errorf("format not supported")
 	}
 	file, err := os.Open(filePath)
@@ -39,43 +44,29 @@ func HashImage(filePath string) (uint64, error) {
 
 func ReadMetadata(filePath string) (map[string]string, error) {
 	data := make(map[string]string)
-	if HasSuffix(filePath, ".jpg", ".png") {
+	if HasSuffix(filePath, ImageFilters...) {
 		exifs, err := exif.SearchFileAndExtractExif(filePath)
 		if err != nil {
 			return nil, err
 		}
-		tags, _, err := exif.GetFlatExifData(exifs, &exif.ScanOptions{})
+		tags, _, err := exif.GetFlatExifDataUniversalSearch(exifs, &exif.ScanOptions{}, true)
 		if err != nil {
 			return nil, err
 		}
 		for _, t := range tags {
 			if t.TagName == "GPSLatitude" || t.TagName == "GPSLongitude" {
-				values := [3]float64{}
-				rationals, ok := t.Value.([]exic.Rational)
-				if ok {
-					for i, r := range rationals {
-						values[i] = float64(r.Numerator) / float64(r.Denominator)
-					}
+				vals := [3]float64{}
+				fs := Split(t.Formatted, '[', ']', ' ')
+				for i, f := range fs {
+					r, _ := Eval(f)
+					vals[i] = cast.ToFloat64(r)
 				}
-				data[t.TagName] = cast.ToString(values[0] + values[1]/60 + values[2]/3600.0)
+				data[t.TagName] = cast.ToString(vals[0] + vals[1]/60.0 + vals[2]/3600.0)
 			} else {
 				data[t.TagName] = t.FormattedFirst
 			}
 		}
-		// file, err := os.Open(filePath)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// defer file.Close()
-		// ex, err := exifv1.Decode(file)
-		// if err != nil {
-		// 	slog.Error(err.Error())
-		// }
-		// lat, lon, _ := ex.LatLong()
-		// fmt.Println(lat, lon)
-		// data["GPSLatitude"] = cast.ToString(lat)
-		// data["GPSLongitude"] = cast.ToString(lon)
-	} else if HasSuffix(filePath, ".mov", ".mp4") {
+	} else if HasSuffix(filePath, VideoFilters...) {
 		file, err := os.Open(filePath)
 		if err != nil {
 			return nil, err
@@ -91,17 +82,19 @@ func ReadMetadata(filePath string) (map[string]string, error) {
 			loc, _ := time.LoadLocation("Local")
 			data["CreationTime"] = dateUtc.Add(time.Duration(mvhd.GetCreationTime()) * time.Second).In(loc).Format("2006:01:02 15:04:05")
 			data["ModificationTime"] = dateUtc.Add(time.Duration(mvhd.GetModificationTime()) * time.Second).Format("2006:01:02 15:04:05")
-			data["Timescale"] = string(mvhd.Timescale)
-			data["Duration"] = string(mvhd.GetDuration())
-			data["Rate"] = string(mvhd.Rate)
-			data["Volume"] = string(mvhd.Volume)
+			data["Timescale"] = cast.ToString(mvhd.Timescale)
+			data["Duration"] = cast.ToString(mvhd.GetDuration())
+			data["Rate"] = cast.ToString(mvhd.Rate)
+			data["Volume"] = cast.ToString(mvhd.Volume)
 		}
+	} else {
+		return nil, fmt.Errorf("format not supported")
 	}
 	return data, nil
 }
 
 func WriteMetadata(srcFilePath, dstFilePath string, data map[string]any) error {
-	if HasSuffix(srcFilePath, ".jpg") {
+	if HasSuffix(srcFilePath, ImageFilters[0]) {
 		context, err := jpegs.NewJpegMediaParser().ParseFile(srcFilePath)
 		if err != nil {
 			return err
@@ -161,7 +154,7 @@ func WriteMetadata(srcFilePath, dstFilePath string, data map[string]any) error {
 		if err != nil {
 			return err
 		}
-	} else if HasSuffix(srcFilePath, ".png") {
+	} else if HasSuffix(srcFilePath, ImageFilters[1]) {
 		context, err := pngs.NewPngMediaParser().ParseFile(srcFilePath)
 		if err != nil {
 			return err
@@ -214,7 +207,7 @@ func WriteMetadata(srcFilePath, dstFilePath string, data map[string]any) error {
 		if err != nil {
 			return err
 		}
-	} else if HasSuffix(srcFilePath, ".mov", ".mp4") {
+	} else if HasSuffix(srcFilePath, VideoFilters...) {
 		srcFile, err := os.Open(srcFilePath)
 		if err != nil {
 			return err
@@ -273,6 +266,8 @@ func WriteMetadata(srcFilePath, dstFilePath string, data map[string]any) error {
 		if err != nil {
 			return err
 		}
+	} else {
+		return fmt.Errorf("format not supported")
 	}
 	return nil
 }

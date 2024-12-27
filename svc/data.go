@@ -307,9 +307,9 @@ func (s *DataSvc[M]) Make(conds ...any) *gorm.DB {
 			var keys []string
 			var vals []any
 			for k, v := range cond {
-				value, ok := v.(string)
+				vs, ok := v.(string)
 				if ok {
-					if value != "" {
+					if vs != "" {
 						keys = append(keys, fmt.Sprintf("%s like ?", k))
 						vals = append(vals, fmt.Sprintf("%%%s%%", v))
 					}
@@ -384,8 +384,8 @@ func (s *DataSvc[M]) Trans(funcs ...func(tx *gorm.DB) error) error {
 	})
 }
 
-func (s *DataSvc[M]) Update(values map[string]any, conds ...any) error {
-	return s.Make(conds...).Model(new(M)).Updates(values).Error
+func (s *DataSvc[M]) Update(vals map[string]any, conds ...any) error {
+	return s.Make(conds...).Model(new(M)).Updates(vals).Error
 }
 
 func (s *DataSvc[M]) recursion(db *gorm.DB) *gorm.DB {

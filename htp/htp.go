@@ -2,6 +2,7 @@ package htp
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -192,18 +193,24 @@ func SaveFile(url string, headers map[string]string, file ...string) (*resty.Res
 
 func respond(c *resty.Client, res *resty.Response) error {
 	if res.StatusCode() != http.StatusOK {
-		return fmt.Errorf(res.Status())
+		return errors.New(res.Status())
 	}
 	r := cast.ToStringMap(res.String())
 	code, ok := r["code"]
 	if !ok {
 		code = r["error_code"]
 	}
+	if !ok {
+		code = r["status"]
+	}
 	code = cast.ToInt(code)
 	if code != http.StatusOK && code != 0 {
 		msg, ok := r["msg"]
 		if !ok {
 			msg = r["desp"]
+		}
+		if !ok {
+			msg = r["message"]
 		}
 		return fmt.Errorf("api error: %s -> %d", msg, code)
 	}

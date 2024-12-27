@@ -207,12 +207,12 @@ func (b *Browser) Goto(uri string) error {
 	return nil
 }
 
-func (b *Browser) Input(selector string, scrollable bool, value string) error {
+func (b *Browser) Input(selector string, scrollable bool, val string) error {
 	element, err := b.Element(selector, scrollable)
 	if err != nil {
 		return err
 	}
-	return element.Input(value)
+	return element.Input(val)
 }
 
 func (b *Browser) Text(selector string, scrollable bool) (string, error) {

@@ -19,7 +19,7 @@ var (
 )
 
 func Decrypt(data string) (string, error) {
-	inData, err := base64.StdEncoding.DecodeString(data)
+	srcData, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
 		return "", err
 	}
@@ -28,10 +28,10 @@ func Decrypt(data string) (string, error) {
 		return "", err
 	}
 	cbc := cipher.NewCBCDecrypter(block, iv)
-	outData := make([]byte, len(inData))
-	cbc.CryptBlocks(outData, inData)
-	outData = unPaddingPkcs5(outData)
-	return string(outData), nil
+	dstData := make([]byte, len(srcData))
+	cbc.CryptBlocks(dstData, srcData)
+	dstData = unPaddingPkcs5(dstData)
+	return string(dstData), nil
 }
 
 func Digest(data string) string {

@@ -70,8 +70,8 @@ func (t *Trc[T]) Clean(duration time.Duration) error {
 
 func (t *Trc[T]) GetState(task T) string {
 	stateKey := t.GetFullKey(task.GetCode(), "state")
-	stateValue := t.Redis.Get(context.Background(), stateKey).Val()
-	return strings.TrimPrefix(stateValue, t.hostname)
+	stateVal := t.Redis.Get(context.Background(), stateKey).Val()
+	return strings.TrimPrefix(stateVal, t.hostname)
 }
 
 func (t *Trc[T]) Run(tasks []T, process func(T) error) error {
@@ -151,8 +151,8 @@ func (t *Trc[T]) calcRate(beginTime, currentTime, endTime time.Time) float64 {
 
 func (t *Trc[T]) cancel(task T) bool {
 	stateKey := t.GetFullKey(task.GetCode(), "state")
-	stateValue := fmt.Sprintf("%s.%s", t.hostname, StateCanceled)
-	return t.Redis.SetXX(context.Background(), stateKey, stateValue, time.Hour).Val()
+	stateVal := fmt.Sprintf("%s.%s", t.hostname, StateCanceled)
+	return t.Redis.SetXX(context.Background(), stateKey, stateVal, time.Hour).Val()
 }
 
 func (t *Trc[T]) isAvailable(task T) bool {
@@ -168,8 +168,8 @@ func (t *Trc[T]) isAvailable(task T) bool {
 
 func (t *Trc[T]) start(task T) bool {
 	stateKey := t.GetFullKey(task.GetCode(), "state")
-	stateValue := fmt.Sprintf("%s.%s", t.hostname, StateStarted)
-	if !t.Redis.SetNX(context.Background(), stateKey, stateValue, time.Hour).Val() {
+	stateVal := fmt.Sprintf("%s.%s", t.hostname, StateStarted)
+	if !t.Redis.SetNX(context.Background(), stateKey, stateVal, time.Hour).Val() {
 		return false
 	}
 	timesharesKey := t.GetFullKey(task.GetBeginTime().Format("20060102"), task.GetCode(), "timeshares")
