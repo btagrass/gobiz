@@ -69,7 +69,7 @@ func (t *Trc[T]) Clean(duration time.Duration) error {
 }
 
 func (t *Trc[T]) GetState(task T) string {
-	stateKey := t.GetFullKey(task.GetCode(), "state")
+	stateKey := t.GetFullKey(task.Code(), "state")
 	stateVal := t.Redis.Get(context.Background(), stateKey).Val()
 	return strings.TrimPrefix(stateVal, t.hostname)
 }
@@ -78,10 +78,10 @@ func (t *Trc[T]) Run(tasks []T, process func(T) error) error {
 	// Stop
 	thisTasks := make(map[string]T)
 	for _, task := range tasks {
-		thisTasks[task.GetCode()] = task
+		thisTasks[task.Code()] = task
 	}
 	for _, lt := range t.lastTasks {
-		_, ok := thisTasks[lt.GetCode()]
+		_, ok := thisTasks[lt.Code()]
 		if !ok {
 			t.cancel(lt)
 		}
@@ -89,26 +89,26 @@ func (t *Trc[T]) Run(tasks []T, process func(T) error) error {
 	// Match
 	matchedTasks := make(map[string]T)
 	for _, tt := range thisTasks {
-		lt, ok := t.lastTasks[tt.GetCode()]
+		lt, ok := t.lastTasks[tt.Code()]
 		if ok && (reflect.DeepEqual(lt, tt) || t.cancel(lt)) {
 			continue
 		}
 		if t.isAvailable(tt) {
-			matchedTasks[tt.GetCode()] = tt
+			matchedTasks[tt.Code()] = tt
 		}
 	}
 	// Run
 	for _, mt := range matchedTasks {
 		go func(task T) {
 			started := t.start(task)
-			slog.Debug("Start", "started", started, "code", task.GetCode())
+			slog.Debug("Start", "started", started, "code", task.Code())
 			if started {
 				err := process(task)
 				if err != nil {
-					slog.Error(err.Error(), "code", task.GetCode())
+					slog.Error(err.Error(), "code", task.Code())
 				}
 				stopped := t.stop(task)
-				slog.Debug("Stop", "stopped", stopped, "code", task.GetCode())
+				slog.Debug("Stop", "stopped", stopped, "code", task.Code())
 			}
 		}(mt)
 	}
@@ -150,15 +150,15 @@ func (t *Trc[T]) calcRate(beginTime, currentTime, endTime time.Time) float64 {
 }
 
 func (t *Trc[T]) cancel(task T) bool {
-	stateKey := t.GetFullKey(task.GetCode(), "state")
+	stateKey := t.GetFullKey(task.Code(), "state")
 	stateVal := fmt.Sprintf("%s.%s", t.hostname, StateCanceled)
 	return t.Redis.SetXX(context.Background(), stateKey, stateVal, time.Hour).Val()
 }
 
 func (t *Trc[T]) isAvailable(task T) bool {
-	expectedRate := t.calcRate(task.GetBeginTime(), time.Now(), task.GetEndTime())
-	expectedCount := cast.ToInt64(cast.ToFloat64(task.GetCount()) * expectedRate)
-	timesharesKey := t.GetFullKey(task.GetBeginTime().Format("20060102"), task.GetCode(), "timeshares")
+	expectedRate := t.calcRate(task.BeginTime(), time.Now(), task.EndTime())
+	expectedCount := cast.ToInt64(cast.ToFloat64(task.Count()) * expectedRate)
+	timesharesKey := t.GetFullKey(task.BeginTime().Format("20060102"), task.Code(), "timeshares")
 	expectedKey := "expected"
 	t.Redis.HSet(context.Background(), timesharesKey, expectedKey, expectedCount)
 	actualKey := "actual"
@@ -167,12 +167,12 @@ func (t *Trc[T]) isAvailable(task T) bool {
 }
 
 func (t *Trc[T]) start(task T) bool {
-	stateKey := t.GetFullKey(task.GetCode(), "state")
+	stateKey := t.GetFullKey(task.Code(), "state")
 	stateVal := fmt.Sprintf("%s.%s", t.hostname, StateStarted)
 	if !t.Redis.SetNX(context.Background(), stateKey, stateVal, time.Hour).Val() {
 		return false
 	}
-	timesharesKey := t.GetFullKey(task.GetBeginTime().Format("20060102"), task.GetCode(), "timeshares")
+	timesharesKey := t.GetFullKey(task.BeginTime().Format("20060102"), task.Code(), "timeshares")
 	expectedKey := "expected"
 	expectedCount := cast.ToInt64(t.Redis.HGet(context.Background(), timesharesKey, expectedKey).Val())
 	actualKey := "actual"
@@ -184,7 +184,7 @@ func (t *Trc[T]) start(task T) bool {
 }
 
 func (t *Trc[T]) stop(task T) bool {
-	timesharesKey := t.GetFullKey(task.GetBeginTime().Format("20060102"), task.GetCode(), "timeshares")
+	timesharesKey := t.GetFullKey(task.BeginTime().Format("20060102"), task.Code(), "timeshares")
 	state := t.GetState(task)
 	if state == StateCanceled {
 		state = "canceled"
@@ -192,7 +192,7 @@ func (t *Trc[T]) stop(task T) bool {
 		state = "finished"
 	}
 	t.Redis.HIncrBy(context.Background(), timesharesKey, state, 1)
-	stateKey := t.GetFullKey(task.GetCode(), "state")
+	stateKey := t.GetFullKey(task.Code(), "state")
 	t.Redis.Del(context.Background(), stateKey).Val()
 	return true
 }

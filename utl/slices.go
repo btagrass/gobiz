@@ -8,12 +8,12 @@ import (
 	"github.com/samber/lo"
 )
 
-func DifferenceFunc[T any](s1, s2 []T, key func(e T) string) ([]T, []T) {
-	m1 := lo.Associate(s1, func(item T) (string, T) {
-		return key(item), item
+func DifferenceFunc[T1, T2 any](s1 []T1, s2 []T2, k1 func(e1 T1) string, k2 func(e2 T2) string) ([]T1, []T2) {
+	m1 := lo.Associate(s1, func(item T1) (string, T1) {
+		return k1(item), item
 	})
-	m2 := lo.Associate(s2, func(item T) (string, T) {
-		return key(item), item
+	m2 := lo.Associate(s2, func(item T2) (string, T2) {
+		return k2(item), item
 	})
 	for k := range m1 {
 		_, ok := m2[k]
@@ -37,7 +37,9 @@ func ForParallel[T any](s []T, iterate func(e T) error, callback func(i int), si
 		locker.Lock()
 		index++
 		locker.Unlock()
-		callback(index)
+		if callback != nil {
+			callback(index)
+		}
 		group.Done()
 	})
 	if err != nil {

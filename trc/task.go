@@ -5,8 +5,8 @@ import (
 )
 
 type ITask interface {
-	GetCode() string
-	GetBeginTime() time.Time
-	GetEndTime() time.Time
-	GetCount() int
+	Code() string
+	BeginTime() time.Time
+	EndTime() time.Time
+	Count() int
 }

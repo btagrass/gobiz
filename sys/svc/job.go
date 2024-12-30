@@ -14,11 +14,12 @@ import (
 
 type IJob interface {
 	cron.Job
-	GetName() string
-	GetDesc() string
-	GetCron() string
-	GetArg() string
-	GetArgDesc() string
+	Name() string
+	Desc() string
+	Cron() string
+	Arg() string
+	ArgDesc() string
+	Stopping() bool
 	SetArg(arg string)
 }
 
@@ -45,32 +46,40 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 		ticker := time.NewTicker(s.interval)
 		defer ticker.Stop()
 		for range ticker.C {
-			jobs, _, err := s.List()
-			if err != nil {
-				slog.Error(err.Error())
-			}
+			jobs, _, _ := s.List()
 			for _, j := range jobs {
+				job, ok := s.jobs[j.Name]
+				if !ok {
+					continue
+				}
 				key := s.GetFullKey(j.Id)
 				if j.State == 0 {
 					if j.Instance == 0 {
 						continue
 					}
 					s.cron.Remove(cron.EntryID(j.Instance))
-					err = s.Update(map[string]any{
+					err := s.Update(map[string]any{
 						"instance": 0,
 					}, j.Id)
 					if err != nil {
 						slog.Error(err.Error())
-						continue
 					}
 					s.Local.Delete(key)
 				} else {
+					if job.Stopping() {
+						delete(s.jobs, job.Name())
+						if j.Instance > 0 {
+							s.cron.Remove(cron.EntryID(j.Instance))
+						}
+						s.Local.Delete(key)
+						continue
+					}
 					v, ok := s.Local.Get(key)
 					if ok {
-						job := v.(mdl.Job)
-						if job.Cron == j.Cron && job.Arg == j.Arg {
+						cj := v.(mdl.Job)
+						if j.Cron == cj.Cron && j.Arg == cj.Arg {
 							entry := s.cron.Entry(cron.EntryID(j.Instance))
-							err = s.Update(map[string]any{
+							err := s.Update(map[string]any{
 								"updated_at": entry.Prev,
 							}, j.Id)
 							if err != nil {
@@ -82,10 +91,7 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 					if j.Instance > 0 {
 						s.cron.Remove(cron.EntryID(j.Instance))
 					}
-					job, ok := s.jobs[j.Name]
-					if ok {
-						job.SetArg(j.Arg)
-					}
+					job.SetArg(j.Arg)
 					instance, err := s.cron.AddJob(j.Cron, job)
 					if err != nil {
 						slog.Error(err.Error())
@@ -108,13 +114,14 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 
 func (s *JobSvc) AddJobs(jobs ...IJob) error {
 	for _, j := range jobs {
-		s.jobs[j.GetName()] = j
+		s.jobs[j.Name()] = j
 		err := s.Save(mdl.Job{
-			Name:    j.GetName(),
-			Desc:    j.GetDesc(),
-			Cron:    j.GetCron(),
-			Arg:     j.GetArg(),
-			ArgDesc: j.GetArgDesc(),
+			Name:    j.Name(),
+			Desc:    j.Desc(),
+			Cron:    j.Cron(),
+			Arg:     j.Arg(),
+			ArgDesc: j.ArgDesc(),
+			State:   1,
 		}, clause.OnConflict{
 			Columns: []clause.Column{{
 				Name: "name",

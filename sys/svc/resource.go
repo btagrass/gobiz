@@ -16,9 +16,7 @@ type ResourceSvc struct {
 
 func NewResourceSvc(i *do.Injector) (*ResourceSvc, error) {
 	return &ResourceSvc{
-		DataSvc: svc.NewDataSvc[mdl.Resource](
-			"sys:resources",
-		),
+		DataSvc: svc.NewDataSvc[mdl.Resource]("sys:resources"),
 		userSvc: svc.Use[*UserSvc](),
 	}, nil
 }
