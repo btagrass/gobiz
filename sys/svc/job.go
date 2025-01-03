@@ -38,7 +38,7 @@ func NewJobSvc(i *do.Injector) (*JobSvc, error) {
 		jobs:     make(map[string]IJob),
 	}
 	if s.interval == 0 {
-		s.interval = 3 * time.Second
+		s.interval = time.Minute
 	}
 	go func() {
 		s.cron.Start()

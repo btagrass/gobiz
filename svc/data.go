@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"log/slog"
 	"net/url"
 	"os"
@@ -15,15 +13,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/btagrass/gobiz/app"
 	"github.com/btagrass/gobiz/utl"
 	"github.com/glebarez/sqlite"
+	slogorm "github.com/orandin/slog-gorm"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
 
@@ -70,26 +67,13 @@ func init() {
 			DefaultStringSize: 100,
 		})
 	}
-	var level logger.LogLevel
-	switch app.LogLevel {
-	case slog.LevelWarn:
-		level = logger.Warn
-	case slog.LevelError:
-		level = logger.Error
-	default:
-		level = logger.Info
-	}
 	db, err = gorm.Open(dialector, &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true,
 		},
-		Logger: logger.New(
-			log.New(io.MultiWriter(os.Stdout, app.LogFile), "", log.LstdFlags),
-			logger.Config{
-				SlowThreshold:             200 * time.Millisecond,
-				IgnoreRecordNotFoundError: true,
-				LogLevel:                  level,
-			},
+		Logger: slogorm.New(
+			slogorm.WithSlowThreshold(500*time.Millisecond),
+			slogorm.SetLogLevel(slogorm.SlowQueryLogType, slog.LevelWarn),
 		),
 		PrepareStmt:                              true,
 		DisableForeignKeyConstraintWhenMigrating: true,
